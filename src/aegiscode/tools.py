@@ -2,19 +2,21 @@ from __future__ import annotations
 
 import fnmatch
 import html
+import json
 import os
 import re
 import shutil
 import subprocess
 import urllib.request
 from pathlib import Path
-from time import time
-from uuid import uuid4
+from typing import Any
 
 from .actions import Action, Observation
 from .audit import AuditLog
 from .registry import ToolRegistry
+from .runtime import RuntimeStore, records_asdict
 from .snapshots import SnapshotStore
+from .todo import TodoStore
 
 
 class ToolDispatcher:
@@ -26,10 +28,9 @@ class ToolDispatcher:
         self.snapshot_before_mutation = snapshot_before_mutation
         self.registry = ToolRegistry()
         self.state_dir = self.workspace / ".aegiscode"
-        self.jobs_dir = self.state_dir / "jobs"
-        self.jobs_dir.mkdir(parents=True, exist_ok=True)
-        self._processes: dict[str, subprocess.Popen] = {}
-        self._logs: dict[str, Path] = {}
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+        self.runtime = RuntimeStore(self.state_dir)
+        self.todos = TodoStore(self.state_dir / "todos.json")
 
     def _safe_path(self, raw: str) -> Path:
         path = Path(raw)
@@ -65,11 +66,6 @@ class ToolDispatcher:
     def _git(self, args: list[str], source: str) -> Observation:
         proc = subprocess.run(["git", *args], cwd=self.workspace, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         return Observation(source, proc.returncode == 0, proc.stdout + proc.stderr, {"returncode": proc.returncode})
-
-    def _tail(self, path: Path, lines: int) -> str:
-        if not path.exists():
-            return ""
-        return "\n".join(path.read_text(encoding="utf-8", errors="replace").splitlines()[-lines:])
 
     def dispatch(self, action: Action) -> Observation:
         self._log("action.start", action.type, {"action_type": action.type, "params": action.params})
@@ -117,7 +113,7 @@ class ToolDispatcher:
                 path.unlink()
             return Observation("tool.delete_file", True, f"deleted {path.relative_to(self.workspace)}")
         if action.type == "glob":
-            matches = sorted(str(x.relative_to(self.workspace)) for x in self.workspace.glob(str(p.get("pattern", "**/*"))))
+            matches = sorted(str(x.relative_to(self.workspace)) for x in self.workspace.glob(str(p.get("pattern", "**/*"))) if ".git" not in x.parts and ".aegiscode" not in x.parts)
             return Observation("tool.glob", True, "\n".join(matches[:500]), {"count": len(matches)})
         if action.type == "grep":
             query = str(p["query"])
@@ -127,13 +123,14 @@ class ToolDispatcher:
             for file in self.workspace.rglob("*"):
                 if not file.is_file() or ".git" in file.parts or ".aegiscode" in file.parts:
                     continue
-                if not fnmatch.fnmatch(file.name, glob_pat) and not fnmatch.fnmatch(str(file.relative_to(self.workspace)), glob_pat):
+                rel = str(file.relative_to(self.workspace))
+                if not fnmatch.fnmatch(file.name, glob_pat) and not fnmatch.fnmatch(rel, glob_pat):
                     continue
                 try:
                     for idx, line in enumerate(file.read_text(encoding="utf-8").splitlines(), 1):
                         ok = re.search(query, line) is not None if regex else query in line
                         if ok:
-                            results.append(f"{file.relative_to(self.workspace)}:{idx}:{line}")
+                            results.append(f"{rel}:{idx}:{line}")
                 except UnicodeDecodeError:
                     continue
             return Observation("tool.grep", True, "\n".join(results[:500]), {"count": len(results)})
@@ -154,40 +151,31 @@ class ToolDispatcher:
             obs = self._run(command, timeout)
             obs.source = f"tool.{action.type}"
             return obs
-        if action.type in {"shell_session_start", "job_start"}:
-            jid = str(uuid4())
-            log = self.jobs_dir / f"{jid}.log"
-            command = str(p["command"])
-            fh = log.open("ab")
-            proc = subprocess.Popen(command, cwd=self.workspace, shell=True, stdin=subprocess.PIPE, stdout=fh, stderr=subprocess.STDOUT)
-            self._processes[jid] = proc
-            self._logs[jid] = log
-            meta = self.jobs_dir / f"{jid}.json"
-            meta.write_text(str({"id": jid, "command": command, "name": p.get("name", ""), "started_at": time()}), encoding="utf-8")
-            return Observation(f"tool.{action.type}", True, f"started {jid}", {"id": jid, "pid": proc.pid, "log": str(log)})
-        if action.type in {"shell_session_read", "job_tail"}:
-            jid = str(p["id"])
-            log = self._logs.get(jid) or self.jobs_dir / f"{jid}.log"
-            return Observation(f"tool.{action.type}", True, self._tail(log, int(p.get("lines", 200))), {"id": jid})
+        if action.type == "shell_session_start":
+            rec = self.runtime.start_shell(str(p.get("command", "")), self.workspace, str(p.get("name", "")))
+            return Observation("tool.shell_session_start", True, f"started shell {rec.id}", asdict_safe(rec))
+        if action.type == "shell_session_list":
+            rows = records_asdict(self.runtime.list("shell"))
+            return Observation("tool.shell_session_list", True, json.dumps(rows, ensure_ascii=False, indent=2), {"sessions": rows})
+        if action.type == "shell_session_read":
+            return Observation("tool.shell_session_read", True, self.runtime.tail(str(p["id"]), int(p.get("lines", 200))), {"id": str(p["id"])})
         if action.type == "shell_session_send":
-            jid = str(p["id"])
-            proc = self._processes[jid]
-            assert proc.stdin is not None
-            proc.stdin.write(str(p.get("input", "")) + ("\n" if p.get("enter", True) else ""))
-            proc.stdin.flush()
-            return Observation("tool.shell_session_send", True, f"sent input to {jid}", {"id": jid})
-        if action.type in {"shell_session_kill", "job_kill"}:
-            jid = str(p["id"])
-            proc = self._processes.get(jid)
-            if proc is None:
-                return Observation(f"tool.{action.type}", False, "unknown process id", {"id": jid})
-            proc.terminate()
-            return Observation(f"tool.{action.type}", True, f"terminated {jid}", {"id": jid})
+            rec = self.runtime.send(str(p["id"]), str(p.get("input", "")), bool(p.get("enter", True)))
+            return Observation("tool.shell_session_send", True, f"sent input to {rec.id}", asdict_safe(rec))
+        if action.type == "shell_session_kill":
+            rec = self.runtime.kill(str(p["id"]))
+            return Observation("tool.shell_session_kill", True, f"terminated {rec.id}", asdict_safe(rec))
+        if action.type == "job_start":
+            rec = self.runtime.start_job(str(p["command"]), self.workspace, str(p.get("name", "")))
+            return Observation("tool.job_start", True, f"started job {rec.id}", asdict_safe(rec))
         if action.type == "job_list":
-            rows = []
-            for jid, proc in self._processes.items():
-                rows.append({"id": jid, "pid": proc.pid, "returncode": proc.poll(), "log": str(self._logs[jid])})
-            return Observation("tool.job_list", True, str(rows), {"jobs": rows})
+            rows = records_asdict(self.runtime.list("job"))
+            return Observation("tool.job_list", True, json.dumps(rows, ensure_ascii=False, indent=2), {"jobs": rows})
+        if action.type == "job_tail":
+            return Observation("tool.job_tail", True, self.runtime.tail(str(p["id"]), int(p.get("lines", 200))), {"id": str(p["id"])})
+        if action.type == "job_kill":
+            rec = self.runtime.kill(str(p["id"]))
+            return Observation("tool.job_kill", True, f"terminated {rec.id}", asdict_safe(rec))
         if action.type == "git_status":
             return self._git(["status", "--short", "--branch"], "tool.git_status")
         if action.type == "git_diff":
@@ -212,25 +200,70 @@ class ToolDispatcher:
             text = html.unescape(re.sub(r"\s+", " ", text)).strip()
             return Observation("tool.browser_text", True, text[:20000], {"url": url})
         if action.type in {"browser_screenshot", "browser_pdf"}:
-            return Observation(f"tool.{action.type}", False, "browser artifact backend is optional; use WebUI or install Playwright for artifact capture")
+            return self._playwright_artifact(action.type, p)
         if action.type == "audit_tail":
             events = self.audit.tail(int(p.get("limit", 50))) if self.audit else []
-            return Observation("tool.audit_tail", True, "\n".join(str(e) for e in events), {"count": len(events)})
+            rows = [asdict_safe(e) for e in events]
+            return Observation("tool.audit_tail", True, "\n".join(json.dumps(row, ensure_ascii=False) for row in rows), {"count": len(events)})
         if action.type == "create_snapshot":
             if not self.snapshots:
                 return Observation("tool.create_snapshot", False, "snapshots are not configured")
             rec = self.snapshots.create(str(p.get("reason", "manual")))
-            return Observation("tool.create_snapshot", True, rec.id, {"archive": rec.archive})
+            return Observation("tool.create_snapshot", True, rec.id, {"snapshot": asdict_safe(rec)})
+        if action.type == "list_snapshots":
+            rows = [asdict_safe(rec) for rec in self.snapshots.list()] if self.snapshots else []
+            return Observation("tool.list_snapshots", True, json.dumps(rows, ensure_ascii=False, indent=2), {"snapshots": rows})
         if action.type == "restore_snapshot":
             if not self.snapshots:
                 return Observation("tool.restore_snapshot", False, "snapshots are not configured")
             rec = self.snapshots.restore(str(p["id"]))
-            return Observation("tool.restore_snapshot", True, rec.id, {"archive": rec.archive})
+            return Observation("tool.restore_snapshot", True, rec.id, {"snapshot": asdict_safe(rec)})
+        if action.type == "todo_add":
+            item = self.todos.add(str(p["content"]), str(p.get("priority", "normal")))
+            return Observation("tool.todo_add", True, item.id, {"todo": asdict_safe(item)})
+        if action.type == "todo_list":
+            rows = [asdict_safe(item) for item in self.todos.list(p.get("status"))]
+            return Observation("tool.todo_list", True, json.dumps(rows, ensure_ascii=False, indent=2), {"todos": rows})
+        if action.type == "todo_update":
+            item = self.todos.update(str(p["id"]), status=p.get("status"), content=p.get("content"), priority=p.get("priority"))
+            return Observation("tool.todo_update", True, item.id, {"todo": asdict_safe(item)})
+        if action.type == "todo_remove":
+            item = self.todos.remove(str(p["id"]))
+            return Observation("tool.todo_remove", True, item.id, {"todo": asdict_safe(item)})
         if action.type == "list_tools":
             tools = self.registry.describe()
-            return Observation("tool.list_tools", True, str(tools), {"tools": tools})
+            return Observation("tool.list_tools", True, json.dumps(tools, ensure_ascii=False, indent=2), {"tools": tools})
         if action.type == "remember":
             return Observation("tool.remember", True, str(p.get("text", "")), {"tags": p.get("tags", [])})
         if action.type == "finish":
             return Observation("tool.finish", True, str(p.get("summary", "finished")))
         return Observation("tool.unknown", False, f"unknown action: {action.type}")
+
+    def _playwright_artifact(self, action_type: str, params: dict[str, Any]) -> Observation:
+        try:
+            from playwright.sync_api import sync_playwright
+        except Exception as exc:
+            return Observation(f"tool.{action_type}", False, f"Playwright is not installed: {exc}")
+        url = str(params["url"])
+        output = self._safe_path(str(params.get("output") or ("screenshot.png" if action_type == "browser_screenshot" else "page.pdf")))
+        output.parent.mkdir(parents=True, exist_ok=True)
+        width = int(params.get("width", 1440))
+        height = int(params.get("height", 1000))
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch()
+            page = browser.new_page(viewport={"width": width, "height": height})
+            page.goto(url, wait_until=str(params.get("wait_until", "networkidle")))
+            if action_type == "browser_screenshot":
+                page.screenshot(path=str(output), full_page=bool(params.get("full_page", True)))
+            else:
+                page.pdf(path=str(output), width=f"{width}px", height=f"{height}px")
+            browser.close()
+        return Observation(f"tool.{action_type}", True, f"wrote {output.relative_to(self.workspace)}", {"path": str(output), "url": url})
+
+
+def asdict_safe(obj: Any) -> dict[str, Any]:
+    if hasattr(obj, "__dataclass_fields__"):
+        from dataclasses import asdict
+
+        return asdict(obj)
+    return dict(obj)
