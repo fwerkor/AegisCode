@@ -28,8 +28,8 @@ jobs:
       - run: python scripts/build_docs.py
       - run: python scripts/validate_packaging.py
       - run: python scripts/release_dry_run.py
-      - run: python -m pipx install .
-      - run: ~/.local/bin/aegiscode doctor
+      - run: PIPX_HOME=/tmp/pipx PIPX_BIN_DIR=/tmp/pipx/bin python -m pipx install .
+      - run: /tmp/pipx/bin/aegiscode doctor
       - run: uv tool install .
       - run: aegiscode doctor
       - run: npm install -g ./packaging/npm-wrapper
