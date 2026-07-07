@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import time
 from dataclasses import asdict, dataclass, field
@@ -225,7 +226,7 @@ class SubagentManager:
         self.store.save_tasks(tasks)
         try:
             spec = self.store.load_specs()[pending.agent_name]
-            cfg = self.config
+            cfg = copy.deepcopy(self.config)
             if spec.max_steps is not None:
                 cfg.agent.max_steps = spec.max_steps
             llm: LLMClient = self.llm_factory(spec)
