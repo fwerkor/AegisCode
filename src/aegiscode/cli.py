@@ -224,9 +224,7 @@ def _obs_payload(obs) -> dict[str, Any]:
     return {"success": obs.success, "source": obs.source, "message": obs.message, "data": obs.data}
 
 
-def _direct_action(ns: argparse.Namespace, action: Action) -> int:
-    cfg = _cfg(ns.config)
-    workspace = _workspace(cfg).resolve()
+def _governed_runtime(cfg: HarnessConfig, workspace: Path):
     audit = AuditLog(_state_path(workspace, cfg.governance.audit_path))
     approvals = ApprovalQueue(_state_path(workspace, cfg.governance.approvals_path))
     registry = ToolRegistry()
@@ -237,6 +235,33 @@ def _direct_action(ns: argparse.Namespace, action: Action) -> int:
         max_command_chars=cfg.shell_policy.max_command_chars,
     )
     guardrails = GuardrailEngine(workspace, cfg.guardrails.require_approval, shell_policy=policy, registry=registry)
+    snapshots = SnapshotStore(workspace, cfg.governance.snapshot_dir)
+    tools = ToolDispatcher(workspace, audit=audit, snapshots=snapshots, snapshot_before_mutation=cfg.governance.snapshot_before_mutation)
+    return audit, approvals, guardrails, tools
+
+
+def _execute_approved_record(cfg: HarnessConfig, workspace: Path, record) -> tuple[dict[str, Any], int]:
+    action = Action(record.action_type, dict(record.params))
+    _, _, guardrails, tools = _governed_runtime(cfg, workspace)
+    decision = guardrails.check(action, approved=True)
+    if not decision.allowed:
+        return {
+            "approval": asdict(record),
+            "execution": {
+                "success": False,
+                "source": "guardrail",
+                "message": "; ".join(decision.reasons),
+                "data": {"action": action.type, "reasons": decision.reasons},
+            },
+        }, 2
+    obs = tools.dispatch(action)
+    return {"approval": asdict(record), "execution": _obs_payload(obs)}, 0 if obs.success else 1
+
+
+def _direct_action(ns: argparse.Namespace, action: Action) -> int:
+    cfg = _cfg(ns.config)
+    workspace = _workspace(cfg).resolve()
+    audit, approvals, guardrails, tools = _governed_runtime(cfg, workspace)
     decision = guardrails.check(action)
     if not decision.allowed:
         payload: dict[str, Any] = {"allowed": False, "needs_approval": decision.needs_approval, "action": action.type, "reasons": decision.reasons}
@@ -248,8 +273,6 @@ def _direct_action(ns: argparse.Namespace, action: Action) -> int:
             return 3
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 2
-    snapshots = SnapshotStore(workspace, cfg.governance.snapshot_dir)
-    tools = ToolDispatcher(workspace, audit=audit, snapshots=snapshots, snapshot_before_mutation=cfg.governance.snapshot_before_mutation)
     obs = tools.dispatch(action)
     print(json.dumps(_obs_payload(obs), indent=2, ensure_ascii=False))
     return 0 if obs.success else 1
@@ -437,7 +460,10 @@ def main(argv: list[str] | None = None) -> int:
         if ns.approval_cmd == "list":
             return _print_json([asdict(rec) for rec in queue.list(ns.status)])
         if ns.approval_cmd == "approve":
-            return _print_json(asdict(queue.decide(ns.id, True, ns.note)))
+            record = queue.decide(ns.id, True, ns.note)
+            payload, code = _execute_approved_record(cfg, workspace.resolve(), record)
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            return code
         if ns.approval_cmd == "reject":
             return _print_json(asdict(queue.decide(ns.id, False, ns.note)))
 

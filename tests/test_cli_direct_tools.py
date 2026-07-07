@@ -38,6 +38,11 @@ def test_file_todo_snapshot_and_approval_cli(tmp_path: Path, monkeypatch, capsys
     assert approval["needs_approval"] is True
     assert approval["action"] == "delete_file"
     assert (tmp_path / "hello.txt").exists()
+    assert main(["approval", "approve", approval["approval"]["id"]]) == 0
+    executed = _json_out(capsys)
+    assert executed["approval"]["status"] == "approved"
+    assert executed["execution"]["success"] is True
+    assert not (tmp_path / "hello.txt").exists()
 
 
 def test_doctor_reports_capability_matrix(capsys):
