@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import urllib.request
+from urllib.parse import urlparse
 from pathlib import Path
 from typing import Any
 
@@ -66,6 +67,12 @@ class ToolDispatcher:
     def _git(self, args: list[str], source: str) -> Observation:
         proc = subprocess.run(["git", *args], cwd=self.workspace, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         return Observation(source, proc.returncode == 0, proc.stdout + proc.stderr, {"returncode": proc.returncode})
+
+    def _validate_browser_url(self, raw: str) -> str:
+        parsed = urlparse(raw)
+        if parsed.scheme not in {"http", "https"}:
+            raise ValueError(f"unsupported browser URL scheme: {parsed.scheme or '<none>'}")
+        return raw
 
     def dispatch(self, action: Action) -> Observation:
         self._log("action.start", action.type, {"action_type": action.type, "params": action.params})
@@ -193,7 +200,7 @@ class ToolDispatcher:
         if action.type == "git_log":
             return self._git(["log", f"--max-count={int(p.get('limit', 20))}", "--oneline", "--decorate"], "tool.git_log")
         if action.type == "browser_text":
-            url = str(p["url"])
+            url = self._validate_browser_url(str(p["url"]))
             with urllib.request.urlopen(url, timeout=int(p.get("timeout", 20))) as resp:
                 raw = resp.read().decode("utf-8", errors="replace")
             text = re.sub(r"<[^>]+>", " ", raw)
@@ -244,7 +251,7 @@ class ToolDispatcher:
             from playwright.sync_api import sync_playwright
         except Exception as exc:
             return Observation(f"tool.{action_type}", False, f"Playwright is not installed: {exc}")
-        url = str(params["url"])
+        url = self._validate_browser_url(str(params["url"]))
         output = self._safe_path(str(params.get("output") or ("screenshot.png" if action_type == "browser_screenshot" else "page.pdf")))
         output.parent.mkdir(parents=True, exist_ok=True)
         width = int(params.get("width", 1440))

@@ -45,3 +45,18 @@ def test_doctor_reports_capability_matrix(capsys):
     payload = _json_out(capsys)
     assert payload["tool_matrix"]["file"]
     assert payload["capabilities"]["git"] in {True, False}
+
+
+def test_browser_tools_reject_non_http_urls(tmp_path: Path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    outside = tmp_path.parent / "outside.txt"
+    outside.write_text("secret", encoding="utf-8")
+    assert main(["browser", "text", outside.as_uri()]) == 1
+    payload = _json_out(capsys)
+    assert payload["success"] is False
+    assert "unsupported browser URL scheme" in payload["message"]
+
+    assert main(["browser", "screenshot", outside.as_uri(), "--output", "shot.png"]) == 1
+    payload = _json_out(capsys)
+    assert payload["success"] is False
+    assert not (tmp_path / "shot.png").exists()
