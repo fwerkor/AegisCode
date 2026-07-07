@@ -76,7 +76,7 @@ Task + Config + Memory
    FeedbackSensor ----> observations back to loop
 ```
 
-External dependencies: Python standard library, `cryptography` for encrypted credentials, optional OpenAI-compatible chat completion endpoint, Docker for container distribution.
+External dependencies: Python standard library, `cryptography` for encrypted credentials, optional OpenAI-compatible chat completion endpoint and GitHub Models endpoint, optional GitHub Models REST inference endpoint, Docker for container distribution.
 
 ## 6. Data model
 
