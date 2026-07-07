@@ -1,5 +1,5 @@
 import pytest
-from aegis_harness.parser import ActionParseError, parse_action
+from aegiscode.parser import ActionParseError, parse_action
 
 def test_parse_action_from_json():
     action = parse_action('{"action":{"type":"write_file","path":"a.py","content":"x=1"}}')

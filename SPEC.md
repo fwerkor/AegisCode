@@ -1,112 +1,123 @@
-# SPEC: Aegis Code Harness
+# SPEC: AegisCode
 
-## 1. Problem statement
+## 1. Goal
 
-Modern LLMs can propose coding steps, but a usable coding agent needs a harness around the model. Aegis Code Harness targets individual developers and students who need a small, auditable coding agent kernel that can read and write files, execute commands, run objective validators, stop for human approval on dangerous actions, and remember project conventions across sessions.
+AegisCode is an opencode-style coding-agent runtime for normal developer repositories. It provides a single CLI, `aegiscode`, with project initialization, governed local tools, durable subagents, persistent approvals, snapshots, audit logs, provider adapters, a local WebUI, and portable release artifacts.
 
-The value is that the core mechanisms are code, not instructions hidden in prompts. The project can still run with a mock LLM, which makes its safety and feedback behavior testable.
+The core behavior is implemented in this repository and remains testable with `MockLLM`. The model supplies one JSON action per turn; AegisCode owns parsing, validation, tool dispatch, governance, feedback, and stop conditions.
 
-## 2. User stories
-
-1. As a developer, I can ask the harness to complete a coding task in a workspace so generated changes do not escape the project directory.
-2. As a reviewer, I can run mock-LLM tests so the harness mechanisms can be verified without network access.
-3. As a cautious user, I can require approval for destructive or publishing actions so the agent cannot mutate external state silently.
-4. As a developer, I can configure deterministic validators so syntax errors, test failures, or lint failures are fed back into the next model turn.
-5. As a returning user, I can store project conventions in memory so future tasks receive only relevant recalled facts.
-6. As a deployer, I can run the project from source or Docker and configure provider credentials without hardcoding keys.
-7. As a course evaluator, I can inspect SPEC, PLAN, AGENT_LOG, tests, CI, and mechanism demos as evidence of process and implementation discipline.
-
-## 3. Functional specification
-
-### 3.1 Decision loop
-
-Input: task text, configuration, memory store, LLM client. Behavior: assemble system prompt, task, memory context, and observations; call one LLM completion per turn; parse one JSON action; dispatch the action; collect feedback; append observations; stop on finish, approval requirement, parser exhaustion, or max steps. Output: `RunResult` with completion status, stop reason, step count, observations, and final summary. Errors: invalid JSON becomes a parser observation and is fed back rather than crashing.
-
-### 3.2 Action and tool dispatch
-
-Supported actions: `read_file`, `write_file`, `delete_file`, `shell`, `test`, `remember`, `finish`. Tool paths are resolved under the workspace. Shell and test commands run with captured stdout, stderr, return code, and timeout. Unknown tools return a failed observation.
-
-### 3.3 Feedback
-
-The feedback sensor runs configured commands after selected actions. Each validator returns success, output, command, and return code. Failures are fed back into the message history. This is objective because it comes from process exit status and captured output, not from LLM self-critique.
-
-### 3.4 Governance
-
-The guardrail engine checks path boundaries, publishing operations, infrastructure mutation, device formatting patterns, and explicit file deletion. Some actions are blocked outright; others return `approval_required`. This is deterministic code and tested with constructed actions.
-
-### 3.5 Memory
-
-The memory store persists JSON records with text, tags, id, and timestamp. Retrieval is lexical token/tag overlap. This is intentionally simple, deterministic, and framework-free.
-
-### 3.6 Configuration
-
-TOML configuration controls max steps, workspace, feedback commands, memory path, and guardrail approval behavior.
-
-### 3.7 Credentials
-
-The CLI provides an encrypted local credential store using a master password. Status never reveals secret values. Environment variables are allowed as a fallback for provider adapters but documented as weaker.
-
-### 3.8 WebUI
-
-A minimal WebUI accepts a task and newline-separated mock responses, runs the harness offline, and displays observations. It exists to satisfy the accessible WebUI requirement and demonstrate mechanisms without real API keys.
-
-## 4. Non-functional requirements
-
-Performance: mock runs should complete in seconds; feedback commands are bounded by timeout. Security: keys are never committed, printed, or logged by credential commands. Workspace access is bounded. Dangerous actions require approval. Usability: source, Makefile, Docker, and WebUI entry points are documented. Observability: every step returns structured observations.
-
-## 5. System architecture
+## 2. User-facing commands
 
 ```text
-Task + Config + Memory
-        |
-        v
-   AgentLoop -----> LLMClient(single completion)
-        |                 |
-        |           JSON action text
-        v
-   ActionParser
-        |
-        v
-   GuardrailEngine -- approval/block --> RunResult
-        |
-        v
-   ToolDispatcher ----> Workspace / Shell / Tests
-        |
-        v
-   FeedbackSensor ----> observations back to loop
+aegiscode init
+aegiscode run
+aegiscode serve
+aegiscode subagent list/register/queue/run-next/run-all
+aegiscode approval list/approve/reject
+aegiscode doctor
+aegiscode auth
 ```
 
-External dependencies: Python standard library, `cryptography` for encrypted credentials, optional OpenAI-compatible chat completion endpoint and GitHub Models endpoint, optional GitHub Models REST inference endpoint, Docker for container distribution.
+`aegiscode init` creates project-level state:
 
-## 6. Data model
+```text
+AGENTS.md
+.aegiscode/config.toml
+.aegiscode/subagents.json
+```
 
-`Action`: type plus params. `Observation`: source, success, message, data. `RunResult`: completion state, stop reason, steps, observations, summary. `MemoryRecord`: id, text, tags, created_at. Credential record: name, salt, encrypted token.
+## 3. Provider surface
 
-## 7. Credential and distribution design
+Supported providers:
 
-The encrypted credential store is the primary local secret mechanism. It uses PBKDF2-HMAC-SHA256 and Fernet encryption. Users can set, check, and clear keys. Docker distribution runs a non-root user and stores data under `/data`. Source distribution uses `pip install -e .[dev]`.
+- `mock`: deterministic offline scripted responses.
+- `openai-compatible`: any chat-completions endpoint compatible with the OpenAI request/response shape.
+- `github-models`: GitHub Models inference endpoint.
 
-## 8. Technology choices
+Provider settings live in `.aegiscode/config.toml` and can be overridden from the CLI. CI and non-interactive runs should use environment variables. Interactive machines may use `aegiscode auth` for encrypted local credentials.
 
-Python was chosen because it is fast for a course-scale CLI/WebUI, has mature testing, and can run in GitLab/GitHub CI without heavy setup. TOML is used for configuration because it is in the Python 3.11+ standard library through `tomllib`. The WebUI uses `http.server` to avoid front-end framework overhead.
+## 4. Tool surface
 
-## 9. Domain and mechanism design
+AegisCode exposes the following governed action families:
 
-The domain is coding. Tools are file I/O, shell, test execution, memory writing, and finish. Feedback signals are validator commands such as `py_compile`, unit tests, lint, or type checks. Dangerous actions include path escape, deletion, publishing, external deployment, infrastructure mutation, and device formatting. Memory needs include project conventions, historical decisions, and recurring validation commands.
+```text
+file: read_file, write_file, edit_file, patch, delete_file, glob, grep, tree
+shell: shell, shell_session_start, shell_session_read, shell_session_send, shell_session_kill, job_start, job_list, job_tail, job_kill
+git: git_status, git_diff, git_add, git_commit, git_push, git_branch, git_log
+browser/web: browser_text, browser_screenshot, browser_pdf
+governance: audit_tail, create_snapshot, restore_snapshot, list_tools
+runtime: test, remember, finish
+```
 
-The main contribution is governance plus feedback. Both are code mechanisms. `GuardrailEngine.check(action)` can be tested directly with a constructed action. `FeedbackSensor.collect()` can be tested against a known broken file. `AgentLoop.run()` can be tested with `MockLLM` scripts. Removing the real LLM still leaves deterministic behavior.
+All paths are resolved under the configured workspace. Path traversal is blocked before dispatch. High-risk actions can require persistent human approval.
+
+## 5. Governance
+
+The guardrail layer checks the action registry, workspace boundaries, shell policy, explicit approval requirements, and command patterns. If an action needs approval, AegisCode writes a durable record to `.aegiscode/approvals.json` and stops the run with `approval_required`.
+
+Every action start, finish, and failure is appended to `.aegiscode/audit.jsonl`. Sensitive fields are redacted before writing. Mutating actions can create pre-change snapshots under `.aegiscode/snapshots` so the workspace can be restored.
+
+## 6. Subagents
+
+Subagents are named, durable role specifications stored in `.aegiscode/subagents.json`. Default roles are:
+
+- planner
+- implementer
+- reviewer
+- tester
+- release
+
+Tasks can be queued and executed sequentially through `aegiscode subagent run-next` or `aegiscode subagent run-all`.
+
+## 7. Feedback and memory
+
+Feedback commands run after selected actions and emit observations back into the next model turn. Typical commands are unit tests, syntax checks, linters, or type checks.
+
+Memory is a local JSON store. Records contain text, tags, id, and timestamp. Retrieval is deterministic lexical/tag matching so tests do not require network or embeddings.
+
+## 8. Release and installation targets
+
+AegisCode release workflows build and upload:
+
+- Python wheel and source distribution
+- Linux, macOS, and Windows standalone binaries
+- Docker image
+- npm wrapper files
+- Homebrew formula
+- Scoop manifest
+- Chocolatey package metadata
+
+Primary install paths are:
+
+```bash
+pipx install aegiscode
+uv tool install aegiscode
+npm i -g aegiscode
+```
+
+Standalone binaries are published on GitHub Releases. The optional shell installer is documented as an alternate path, not the primary recommendation.
+
+## 9. CI requirements
+
+CI covers:
+
+- unit tests
+- integration tests
+- CLI smoke tests
+- docs build
+- Docker build
+- Python package build
+- Linux/macOS/Windows binary build matrix
+- release artifact workflow
+- weekly regression
+- Pages docs deploy
 
 ## 10. Acceptance criteria
 
-- `make test` passes with no network and no real LLM.
-- A mock run can write a file, receive validator feedback, repair the file, and finish.
-- A publish-like command produces `approval_required`.
-- A path traversal write is blocked.
-- Memory records persist and retrieve deterministically.
-- Credential status does not reveal secret material.
-- Docker image builds and starts WebUI.
-- CI includes `unit-test` and container build jobs.
-
-## 11. Risks and open issues
-
-Shell command filtering is never a complete sandbox. Real untrusted code should run in a container or VM with OS-level restrictions. The current memory retrieval is lexical; future work could add embeddings, but that would require careful deterministic fallbacks for tests. Human approval state is represented as a stop condition rather than a full interactive approval server.
+- `python -m pytest -q` passes offline.
+- `aegiscode init` creates `AGENTS.md`, `.aegiscode/config.toml`, and `.aegiscode/subagents.json`.
+- `aegiscode run` can complete a mock provider run.
+- `aegiscode doctor` reports the canonical package and CLI name as `aegiscode`.
+- The tool registry includes file, shell, job, git, browser, audit, snapshot, and runtime actions.
+- High-risk actions produce durable approval records.
+- Docs and workflow names use AegisCode consistently.

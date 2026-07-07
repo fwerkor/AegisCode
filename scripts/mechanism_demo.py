@@ -1,9 +1,9 @@
 from __future__ import annotations
 import argparse, json, tempfile
 from pathlib import Path
-from aegis_harness.agent import AgentLoop
-from aegis_harness.config import HarnessConfig
-from aegis_harness.llm import MockLLM
+from aegiscode.agent import AgentLoop
+from aegiscode.config import HarnessConfig
+from aegiscode.llm import MockLLM
 
 def run_case(case: str) -> dict:
     with tempfile.TemporaryDirectory() as td:

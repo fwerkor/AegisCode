@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>aegiscode</id>
+    <version>0.1.0</version>
+    <title>AegisCode</title>
+    <authors>Castronaut</authors>
+    <projectUrl>https://github.com/fwerkor/AegisCode</projectUrl>
+    <licenseUrl>https://github.com/fwerkor/AegisCode/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Opencode-style coding-agent CLI with subagents and governed tools.</description>
+    <tags>aegiscode coding-agent cli subagents</tags>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

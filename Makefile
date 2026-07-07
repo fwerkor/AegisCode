@@ -1,13 +1,27 @@
-.PHONY: test demo web docker-build
+.PHONY: test integration cli-smoke docs package binary docker-build web
 
 test:
 	python -m pytest
 
-demo:
-	python scripts/mechanism_demo.py --case all
+integration:
+	python -m pytest tests/test_integration_runtime.py
+
+cli-smoke:
+	python -m pip install -e .[dev]
+	aegiscode --help
+	aegiscode doctor
 
 web:
-	python -m aegis_harness.web --host 0.0.0.0 --port 8080
+	aegiscode serve --host 0.0.0.0 --port 8080
+
+docs:
+	python scripts/build_docs.py
+
+package:
+	python -m build
+
+binary:
+	python scripts/build_binary.py
 
 docker-build:
-	docker build -t aegis-code-harness:local .
+	docker build -t aegiscode:local .

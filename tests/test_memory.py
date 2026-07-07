@@ -1,4 +1,4 @@
-from aegis_harness.memory import JsonMemoryStore
+from aegiscode.memory import JsonMemoryStore
 
 def test_memory_retrieves_by_token_and_tag(tmp_path):
     store = JsonMemoryStore(tmp_path / "memory.json")

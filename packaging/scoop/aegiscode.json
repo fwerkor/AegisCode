@@ -1,0 +1,21 @@
+{
+  "version": "0.1.0",
+  "description": "Opencode-style coding-agent CLI with subagents and governed tools",
+  "homepage": "https://github.com/fwerkor/AegisCode",
+  "license": "MIT",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/fwerkor/AegisCode/releases/download/v0.1.0/aegiscode-windows-x86_64.exe",
+      "hash": "PLACEHOLDER"
+    }
+  },
+  "bin": "aegiscode.exe",
+  "checkver": "github",
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/fwerkor/AegisCode/releases/download/v$version/aegiscode-windows-x86_64.exe"
+      }
+    }
+  }
+}

@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
-from aegis_harness.agent import AgentLoop
-from aegis_harness.config import HarnessConfig
-from aegis_harness.llm import MockLLM
+from aegiscode.agent import AgentLoop
+from aegiscode.config import HarnessConfig
+from aegiscode.llm import MockLLM
 
 def test_mock_llm_feedback_loop_repairs_file(tmp_path: Path):
     cfg = HarnessConfig(); cfg.agent.max_steps = 5; cfg.feedback.commands = ["python -m py_compile hello.py"]

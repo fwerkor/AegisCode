@@ -1,0 +1,46 @@
+name: Weekly Regression
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  regression:
+    name: weekly regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --upgrade pip build
+      - run: python -m pip install -e .[dev]
+      - run: python -m pytest -q
+      - run: python scripts/build_docs.py
+      - run: python -m build
+      - run: docker build -t aegiscode:weekly .
+
+  open-issue-on-failure:
+    name: open issue on failure
+    runs-on: ubuntu-latest
+    needs: regression
+    if: failure()
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Weekly AegisCode regression failed: ${new Date().toISOString()}`,
+              body: `The scheduled weekly regression workflow failed. Run URL: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              labels: ['ci', 'regression']
+            })

@@ -4,9 +4,10 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+*.spec
 .venv/
 .env
-.aegis/
+.aegiscode/
 .work/
 credential-store.json
 .DS_Store
