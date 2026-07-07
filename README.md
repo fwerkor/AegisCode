@@ -11,7 +11,7 @@
 [![Docker](https://img.shields.io/badge/docker-ready-2496ed?logo=docker&logoColor=white)](https://github.com/fwerkor/AegisCode/pkgs/container/aegiscode)
 [![CLI](https://img.shields.io/badge/cli-aegiscode-111827)](https://fwerkor.github.io/AegisCode/cli.html)
 
-[Documentation](https://fwerkor.github.io/AegisCode/) · [Quickstart](https://fwerkor.github.io/AegisCode/quickstart.html) · [CLI](https://fwerkor.github.io/AegisCode/cli.html) · [Tools](https://fwerkor.github.io/AegisCode/tools.html) · [Subagents](https://fwerkor.github.io/AegisCode/subagents.html) · [Releases](https://github.com/fwerkor/AegisCode/releases)
+[Documentation](https://fwerkor.github.io/AegisCode/) · [Quickstart](https://fwerkor.github.io/AegisCode/quickstart.html) · [CLI](https://fwerkor.github.io/AegisCode/cli.html) · [Tools](https://fwerkor.github.io/AegisCode/tools.html) · [Subagents](https://fwerkor.github.io/AegisCode/subagents.html) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Releases](https://github.com/fwerkor/AegisCode/releases)
 
 </div>
 
@@ -65,6 +65,16 @@ docker run --rm -it -p 8080:8080 -v "$PWD:/workspace" ghcr.io/fwerkor/aegiscode:
 ```
 
 Standalone binaries are published on [GitHub Releases](https://github.com/fwerkor/AegisCode/releases) for Linux, macOS, and Windows.
+
+## Project files
+
+- [LICENSE.md](LICENSE.md): MIT license.
+- [CONTRIBUTING.md](CONTRIBUTING.md): development setup, validation, and pull request expectations.
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md): community behavior rules.
+- [SECURITY.md](SECURITY.md): private vulnerability reporting policy.
+- [SUPPORT.md](SUPPORT.md): support scope and issue requirements.
+- [GOVERNANCE.md](GOVERNANCE.md): maintainer-led project governance.
+- [MAINTAINERS.md](MAINTAINERS.md): maintainer responsibilities.
 
 ## Quick start
 
