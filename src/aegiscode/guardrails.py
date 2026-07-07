@@ -5,6 +5,14 @@ from .actions import Action
 from .policy import ShellPolicy
 from .registry import ToolRegistry
 
+COMMAND_PARAMS = {
+    "shell": "command",
+    "test": "command",
+    "job_start": "command",
+    "shell_session_start": "command",
+    "shell_session_send": "input",
+}
+
 @dataclass
 class GuardDecision:
     allowed: bool
@@ -29,8 +37,9 @@ class GuardrailEngine:
             target = path.resolve() if path.is_absolute() else (self.workspace / path).resolve()
             if self.workspace not in [target, *target.parents]:
                 return GuardDecision(False, False, [f"path escapes workspace: {path}"])
-        if action.type == "shell":
-            decision = self.shell_policy.check(str(action.params.get("command", "")))
+        command_param = COMMAND_PARAMS.get(action.type)
+        if command_param is not None:
+            decision = self.shell_policy.check(str(action.params.get(command_param, "")))
             if not decision.allowed and not decision.needs_approval:
                 return GuardDecision(False, False, decision.reasons)
             reasons.extend(decision.reasons)
