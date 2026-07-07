@@ -65,3 +65,16 @@ def test_browser_tools_reject_non_http_urls(tmp_path: Path, monkeypatch, capsys)
     payload = _json_out(capsys)
     assert payload["success"] is False
     assert not (tmp_path / "shot.png").exists()
+
+
+def test_shell_and_job_remainder_options_are_preserved(tmp_path: Path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    code = "print('quoted ok')"
+    assert main(["shell", "run", "python", "-c", code]) == 0
+    shell_payload = _json_out(capsys)
+    assert "quoted ok" in shell_payload["message"]
+
+    assert main(["job", "start", "python", "-c", "print('job ok')", "--name", "docs-server"]) == 0
+    job_payload = _json_out(capsys)
+    assert job_payload["data"]["name"] == "docs-server"
+    assert "--name" not in job_payload["data"]["command"]

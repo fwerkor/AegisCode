@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import shutil
 import sys
 from dataclasses import asdict
@@ -278,8 +279,24 @@ def _direct_action(ns: argparse.Namespace, action: Action) -> int:
     return 0 if obs.success else 1
 
 
+def _consume_remainder_options(parts: list[str], options: dict[str, Any]) -> tuple[list[str], dict[str, Any]]:
+    remaining: list[str] = []
+    consumed: dict[str, Any] = {}
+    idx = 0
+    while idx < len(parts):
+        item = parts[idx]
+        parser = options.get(item)
+        if parser is not None and idx + 1 < len(parts):
+            consumed[item] = parser(parts[idx + 1])
+            idx += 2
+            continue
+        remaining.append(item)
+        idx += 1
+    return remaining, consumed
+
+
 def _join_remainder(parts: list[str]) -> str:
-    return " ".join(parts).strip()
+    return shlex.join(parts).strip()
 
 
 def _tool_action_from_ns(ns: argparse.Namespace) -> Action | None:
@@ -297,14 +314,20 @@ def _tool_action_from_ns(ns: argparse.Namespace) -> Action | None:
         if ns.file_cmd == "grep": return Action("grep", {"query": ns.query, "glob": ns.glob, "regex": not ns.literal})
         if ns.file_cmd == "tree": return Action("tree", {"path": ns.path, "depth": ns.depth})
     if ns.cmd == "shell":
-        if ns.shell_cmd == "run": return Action("shell", {"command": _join_remainder(ns.command), "timeout": ns.timeout})
-        if ns.shell_cmd == "start": return Action("shell_session_start", {"command": _join_remainder(ns.command), "name": ns.name})
+        if ns.shell_cmd == "run":
+            command, opts = _consume_remainder_options(ns.command, {"--timeout": int})
+            return Action("shell", {"command": _join_remainder(command), "timeout": opts.get("--timeout", ns.timeout)})
+        if ns.shell_cmd == "start":
+            command, opts = _consume_remainder_options(ns.command, {"--name": str})
+            return Action("shell_session_start", {"command": _join_remainder(command), "name": opts.get("--name", ns.name)})
         if ns.shell_cmd == "list": return Action("shell_session_list", {})
         if ns.shell_cmd == "read": return Action("shell_session_read", {"id": ns.id, "lines": ns.lines})
         if ns.shell_cmd == "send": return Action("shell_session_send", {"id": ns.id, "input": ns.input, "enter": not ns.no_enter})
         if ns.shell_cmd == "kill": return Action("shell_session_kill", {"id": ns.id})
     if ns.cmd == "job":
-        if ns.job_cmd == "start": return Action("job_start", {"command": _join_remainder(ns.command), "name": ns.name})
+        if ns.job_cmd == "start":
+            command, opts = _consume_remainder_options(ns.command, {"--name": str})
+            return Action("job_start", {"command": _join_remainder(command), "name": opts.get("--name", ns.name)})
         if ns.job_cmd == "list": return Action("job_list", {})
         if ns.job_cmd == "tail": return Action("job_tail", {"id": ns.id, "lines": ns.lines})
         if ns.job_cmd == "kill": return Action("job_kill", {"id": ns.id})
