@@ -24,11 +24,27 @@ class GuardrailConfig:
     require_approval: bool = True
 
 @dataclass
+class GovernanceConfig:
+    audit_path: Path = Path(".aegis/audit.jsonl")
+    approvals_path: Path = Path(".aegis/approvals.json")
+    snapshot_dir: Path = Path(".aegis/snapshots")
+    snapshot_before_mutation: bool = True
+
+@dataclass
+class ShellPolicyConfig:
+    allow_prefixes: list[str] = field(default_factory=list)
+    approval_patterns: list[str] = field(default_factory=lambda: ["external-deploy", "release-prod", "cloud-admin"])
+    deny_patterns: list[str] = field(default_factory=list)
+    max_command_chars: int = 400
+
+@dataclass
 class HarnessConfig:
     agent: AgentConfig = field(default_factory=AgentConfig)
     feedback: FeedbackConfig = field(default_factory=FeedbackConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
     guardrails: GuardrailConfig = field(default_factory=GuardrailConfig)
+    governance: GovernanceConfig = field(default_factory=GovernanceConfig)
+    shell_policy: ShellPolicyConfig = field(default_factory=ShellPolicyConfig)
 
     @classmethod
     def from_file(cls, path: Path) -> "HarnessConfig":
@@ -46,4 +62,14 @@ class HarnessConfig:
         cfg.memory.max_results = int(memory.get("max_results", cfg.memory.max_results))
         guard = raw.get("guardrails", {})
         cfg.guardrails.require_approval = bool(guard.get("require_approval", cfg.guardrails.require_approval))
+        gov = raw.get("governance", {})
+        cfg.governance.audit_path = Path(gov.get("audit_path", str(cfg.governance.audit_path)))
+        cfg.governance.approvals_path = Path(gov.get("approvals_path", str(cfg.governance.approvals_path)))
+        cfg.governance.snapshot_dir = Path(gov.get("snapshot_dir", str(cfg.governance.snapshot_dir)))
+        cfg.governance.snapshot_before_mutation = bool(gov.get("snapshot_before_mutation", cfg.governance.snapshot_before_mutation))
+        policy = raw.get("shell_policy", {})
+        cfg.shell_policy.allow_prefixes = list(policy.get("allow_prefixes", cfg.shell_policy.allow_prefixes))
+        cfg.shell_policy.approval_patterns = list(policy.get("approval_patterns", cfg.shell_policy.approval_patterns))
+        cfg.shell_policy.deny_patterns = list(policy.get("deny_patterns", cfg.shell_policy.deny_patterns))
+        cfg.shell_policy.max_command_chars = int(policy.get("max_command_chars", cfg.shell_policy.max_command_chars))
         return cfg
