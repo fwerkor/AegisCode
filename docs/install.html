@@ -13,9 +13,9 @@
 <a href="ci.html">CI</a>
 <a href="security.html">Security</a>
 <a href="configuration.html">Configuration</a></aside><main class="content"><h1>Install</h1><p>Supported installation paths include pipx, uv tool, npm wrapper, Docker, Homebrew, Scoop, Chocolatey, and standalone binaries.</p>
-        <div class="card"><h2>Python tools</h2><pre><code>pipx install aegiscode
-uv tool install aegiscode</code></pre></div>
-        <div class="card"><h2>Node wrapper</h2><pre><code>npm i -g aegiscode</code></pre></div>
+        <div class="card"><h2>Python tools</h2><pre><code>pipx install git+https://github.com/fwerkor/AegisCode.git
+uv tool install git+https://github.com/fwerkor/AegisCode.git</code></pre></div>
+        <div class="card"><h2>Node wrapper</h2><pre><code>npm install -g ./packaging/npm-wrapper</code></pre></div>
         <div class="card"><h2>Docker</h2><pre><code>docker run --rm -it -p 8080:8080 -v "$PWD:/workspace" ghcr.io/fwerkor/aegiscode:latest</code></pre></div>
         <div class="card"><h2>Native packages</h2><p>Release metadata includes Homebrew, Scoop, Chocolatey, and standalone binaries for Linux, macOS, and Windows.</p></div>
 </main></div></body></html>

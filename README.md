@@ -43,19 +43,19 @@ User task
 Recommended Python CLI installation:
 
 ```bash
-pipx install aegiscode
+pipx install git+https://github.com/fwerkor/AegisCode.git
 ```
 
 Alternative Python tool installation:
 
 ```bash
-uv tool install aegiscode
+uv tool install git+https://github.com/fwerkor/AegisCode.git
 ```
 
 Node wrapper:
 
 ```bash
-npm i -g aegiscode
+npm install -g ./packaging/npm-wrapper
 ```
 
 Docker:
