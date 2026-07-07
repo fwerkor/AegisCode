@@ -1,4 +1,6 @@
 from pathlib import Path
+import zipfile
+
 from aegiscode.actions import Action
 from aegiscode.approvals import ApprovalQueue
 from aegiscode.audit import AuditLog
@@ -30,8 +32,20 @@ def test_snapshot_store_can_restore_file(tmp_path: Path):
     store = SnapshotStore(tmp_path, tmp_path / ".state" / "snapshots")
     rec = store.create("test")
     (tmp_path / "a.txt").write_text("after")
+    (tmp_path / "extra.txt").write_text("new")
     store.restore(rec.id)
     assert (tmp_path / "a.txt").read_text() == "before"
+    assert not (tmp_path / "extra.txt").exists()
+
+
+def test_snapshot_skips_external_links(tmp_path: Path):
+    outside = tmp_path.parent / "outside.txt"
+    outside.write_text("outside")
+    (tmp_path / "link.txt").symlink_to(outside)
+    store = SnapshotStore(tmp_path, tmp_path / ".state" / "snapshots")
+    rec = store.create("test")
+    with zipfile.ZipFile(rec.archive) as zf:
+        assert "link.txt" not in zf.namelist()
 
 
 def test_policy_allowlist_and_approval_patterns():

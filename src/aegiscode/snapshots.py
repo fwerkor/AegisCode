@@ -25,11 +25,14 @@ class SnapshotStore:
         archive = self.path / f"{snap_id}.zip"
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zf:
             for file in self.workspace.rglob("*"):
-                if not file.is_file():
+                if not file.is_file() or file.is_symlink():
                     continue
                 if self.path in [file, *file.parents]:
                     continue
                 if ".git" in file.parts:
+                    continue
+                resolved = file.resolve()
+                if self.workspace not in [resolved, *resolved.parents]:
                     continue
                 rel = file.relative_to(self.workspace)
                 zf.write(file, rel.as_posix())
@@ -47,8 +50,30 @@ class SnapshotStore:
         if record is None:
             raise KeyError(snap_id)
         with zipfile.ZipFile(record.archive, "r") as zf:
-            zf.extractall(self.workspace)
+            members = [name for name in zf.namelist() if name and not name.endswith("/")]
+            member_paths = {Path(name) for name in members}
+            self._remove_files_not_in(member_paths)
+            for name in members:
+                target = (self.workspace / name).resolve()
+                if self.workspace not in [target, *target.parents]:
+                    raise ValueError(f"snapshot member escapes workspace: {name}")
+            zf.extractall(self.workspace, members)
         return record
+
+    def _remove_files_not_in(self, keep: set[Path]) -> None:
+        for file in sorted(self.workspace.rglob("*"), key=lambda item: len(item.parts), reverse=True):
+            if self.path in [file, *file.parents] or ".git" in file.parts:
+                continue
+            rel = file.relative_to(self.workspace)
+            if file.is_file() or file.is_symlink():
+                if rel not in keep:
+                    file.unlink()
+            elif file.is_dir():
+                try:
+                    next(file.iterdir())
+                except StopIteration:
+                    file.rmdir()
+
 
     def _load(self) -> list[SnapshotRecord]:
         if not self.index_path.exists():
