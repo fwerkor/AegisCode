@@ -25,7 +25,7 @@ def main() -> int:
     assert project["name"] == "aegiscode"
     assert project["scripts"]["aegiscode"] == "aegiscode.cli:main"
     npm = json.loads(Path("packaging/npm-wrapper/package.json").read_text(encoding="utf-8"))
-    assert npm["name"] == "aegiscode"
+    assert npm["name"] == "@fwerkor/aegiscode"
     assert "aegiscode" in npm.get("bin", {})
     print("packaging ok")
     return 0

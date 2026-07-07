@@ -1,8 +1,13 @@
 {
-  "name": "aegiscode",
+  "name": "@fwerkor/aegiscode",
   "version": "0.1.0",
   "description": "Node wrapper for the AegisCode CLI",
-  "bin": {"aegiscode": "bin/aegiscode.js"},
+  "bin": {
+    "aegiscode": "bin/aegiscode.js"
+  },
   "license": "MIT",
-  "files": ["bin/aegiscode.js", "README.md"]
+  "files": [
+    "bin/aegiscode.js",
+    "README.md"
+  ]
 }
