@@ -3,20 +3,28 @@ requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aegis-code-harness"
+name = "aegiscode"
 version = "0.1.0"
-description = "A minimal coding-agent harness with deterministic guardrails, feedback, memory, config, credentials, and WebUI."
+description = "AegisCode is an opencode-style coding-agent runtime with governed tools, subagents, approvals, snapshots, audit logs, and portable releases."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Castronaut" }]
-license = { text = "MIT" }
+license = "MIT"
 dependencies = ["cryptography>=42.0.0"]
+keywords = ["coding-agent", "cli", "subagents", "developer-tools", "automation"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Environment :: Console",
+  "Topic :: Software Development :: Build Tools",
+]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0.0"]
+dev = ["pytest>=8.0.0", "build>=1.2.0"]
 
 [project.scripts]
-aegis = "aegis_harness.cli:main"
+aegiscode = "aegiscode.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

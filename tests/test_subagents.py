@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
-from aegis_harness.config import HarnessConfig
-from aegis_harness.llm import MockLLM
-from aegis_harness.subagents import SubagentManager, SubagentSpec, SubagentStore
+from aegiscode.config import HarnessConfig
+from aegiscode.llm import MockLLM
+from aegiscode.subagents import SubagentManager, SubagentSpec, SubagentStore
 
 
 def test_subagent_manager_runs_persisted_queue(tmp_path: Path):

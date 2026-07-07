@@ -1,6 +1,6 @@
 from pathlib import Path
-from aegis_harness.actions import Action
-from aegis_harness.guardrails import GuardrailEngine
+from aegiscode.actions import Action
+from aegiscode.guardrails import GuardrailEngine
 
 def test_guardrail_requires_approval_for_publish_like_command(tmp_path: Path):
     decision = GuardrailEngine(tmp_path).check(Action("shell", {"command":"external-deploy production"}))

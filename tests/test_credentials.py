@@ -1,5 +1,5 @@
 import pytest
-from aegis_harness.credentials import EncryptedCredentialStore
+from aegiscode.credentials import EncryptedCredentialStore
 
 def test_encrypted_credential_status_does_not_expose_secret(tmp_path):
     store = EncryptedCredentialStore(tmp_path / "cred.json")

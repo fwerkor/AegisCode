@@ -1,10 +1,10 @@
 from pathlib import Path
-from aegis_harness.actions import Action
-from aegis_harness.approvals import ApprovalQueue
-from aegis_harness.audit import AuditLog
-from aegis_harness.policy import ShellPolicy
-from aegis_harness.registry import ToolRegistry
-from aegis_harness.snapshots import SnapshotStore
+from aegiscode.actions import Action
+from aegiscode.approvals import ApprovalQueue
+from aegiscode.audit import AuditLog
+from aegiscode.policy import ShellPolicy
+from aegiscode.registry import ToolRegistry
+from aegiscode.snapshots import SnapshotStore
 
 
 def test_approval_queue_persists_decisions(tmp_path: Path):
