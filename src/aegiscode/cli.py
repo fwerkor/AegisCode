@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shlex
 import shutil
 import sys
@@ -195,15 +196,26 @@ def _credential_store() -> EncryptedCredentialStore:
     return EncryptedCredentialStore(Path.home() / ".aegiscode" / "credential-store.json")
 
 
+def _stored_provider_key(name: str, env_names: list[str]) -> str | None:
+    if any(os.environ.get(env_name) for env_name in env_names):
+        return None
+    store = _credential_store()
+    if not store.status().get(name):
+        return None
+    return store.get(name, prompt_secret("Master password: "))
+
+
 def _make_llm(cfg: HarnessConfig, provider: str | None, model: str | None, base_url: str | None, mock_responses: list[str]):
     selected = provider or cfg.provider.default
     selected_model = model or cfg.provider.model
     if mock_responses or selected == "mock":
         return MockLLM(list(mock_responses))
     if selected == "github-models":
-        return GitHubModelsClient(model=selected_model)
+        token = _stored_provider_key("github", ["AEGISCODE_GITHUB_MODELS_KEY", "GITHUB_MODELS_KEY"])
+        return GitHubModelsClient(model=selected_model, token=token)
     if selected == "openai-compatible":
-        return OpenAICompatibleClient(model=selected_model, base_url=base_url or cfg.provider.base_url)
+        api_key = _stored_provider_key("openai", ["AEGISCODE_OPENAI_API_KEY", "OPENAI_API_KEY"])
+        return OpenAICompatibleClient(model=selected_model, api_key=api_key, base_url=base_url or cfg.provider.base_url)
     raise ValueError(f"unknown provider: {selected}")
 
 
