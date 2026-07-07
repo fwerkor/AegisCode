@@ -60,13 +60,126 @@ max_command_chars = 800
 
 DEFAULT_SUBAGENTS = """{
   "specs": {
-    "planner": {"name": "planner", "role": "planning", "system_hint": "Create a concise implementation plan before edits.", "max_steps": 6, "labels": ["plan"]},
-    "implementer": {"name": "implementer", "role": "implementation", "system_hint": "Make one focused code change and keep tests passing.", "max_steps": 10, "labels": ["code"]},
-    "reviewer": {"name": "reviewer", "role": "review", "system_hint": "Review for spec compliance, safety, and maintainability.", "max_steps": 6, "labels": ["review"]},
-    "tester": {"name": "tester", "role": "verification", "system_hint": "Run validators, classify failures, and propose minimal fixes.", "max_steps": 6, "labels": ["test"]},
-    "release": {"name": "release", "role": "release", "system_hint": "Prepare changelog, artifacts, and release checks.", "max_steps": 6, "labels": ["release"]}
+    "planner": {
+      "name": "planner",
+      "role": "planning",
+      "system_hint": "Create a concise implementation plan before edits.",
+      "max_steps": 6,
+      "labels": [
+        "plan"
+      ],
+      "description": "Break a request into tasks and verification steps.",
+      "capabilities": [
+        "planning",
+        "risk-analysis"
+      ],
+      "workspace": "planner",
+      "provider": "",
+      "model": "",
+      "priority": 50,
+      "concurrency": 1,
+      "handoff": "",
+      "default_next": "implementer"
+    },
+    "implementer": {
+      "name": "implementer",
+      "role": "implementation",
+      "system_hint": "Make one focused code change and keep tests passing.",
+      "max_steps": 10,
+      "labels": [
+        "code"
+      ],
+      "description": "Make focused source changes.",
+      "capabilities": [
+        "file",
+        "shell",
+        "git"
+      ],
+      "workspace": "implementer",
+      "provider": "",
+      "model": "",
+      "priority": 40,
+      "concurrency": 1,
+      "handoff": "",
+      "default_next": "tester"
+    },
+    "tester": {
+      "name": "tester",
+      "role": "verification",
+      "system_hint": "Run validators, classify failures, and propose minimal fixes.",
+      "max_steps": 8,
+      "labels": [
+        "test"
+      ],
+      "description": "Run tests and classify failures.",
+      "capabilities": [
+        "shell",
+        "job",
+        "audit"
+      ],
+      "workspace": "tester",
+      "provider": "",
+      "model": "",
+      "priority": 30,
+      "concurrency": 1,
+      "handoff": "",
+      "default_next": "reviewer"
+    },
+    "reviewer": {
+      "name": "reviewer",
+      "role": "review",
+      "system_hint": "Review for spec compliance, safety, and maintainability.",
+      "max_steps": 6,
+      "labels": [
+        "review"
+      ],
+      "description": "Review implementation quality, safety, and spec compliance.",
+      "capabilities": [
+        "file",
+        "grep",
+        "audit"
+      ],
+      "workspace": "reviewer",
+      "provider": "",
+      "model": "",
+      "priority": 20,
+      "concurrency": 1,
+      "handoff": "",
+      "default_next": "release"
+    },
+    "release": {
+      "name": "release",
+      "role": "release",
+      "system_hint": "Prepare changelog, artifacts, and release checks.",
+      "max_steps": 6,
+      "labels": [
+        "release"
+      ],
+      "description": "Prepare release checks and artifacts.",
+      "capabilities": [
+        "git",
+        "shell",
+        "audit"
+      ],
+      "workspace": "release",
+      "provider": "",
+      "model": "",
+      "priority": 10,
+      "concurrency": 1,
+      "handoff": "",
+      "default_next": ""
+    }
   },
-  "tasks": []
+  "tasks": [],
+  "pipelines": {
+    "default": [
+      "planner",
+      "implementer",
+      "tester",
+      "reviewer",
+      "release"
+    ]
+  }
 }
 """
 
