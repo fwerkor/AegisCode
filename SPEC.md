@@ -36,6 +36,8 @@ Supported providers:
 
 Provider settings live in `.aegiscode/config.toml` and can be overridden from the CLI. CI and non-interactive runs should use environment variables. Interactive machines may use `aegiscode auth` for encrypted local credentials.
 
+External dependencies: Python standard library, `cryptography` for encrypted credentials, optional OpenAI-compatible chat completion endpoint, optional GitHub Models REST inference endpoint, and Docker for container distribution.
+
 ## 4. Tool surface
 
 AegisCode exposes the following governed action families:
