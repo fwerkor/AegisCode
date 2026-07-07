@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>AI4SE Agent Kernel WebUI</title><style>body{font-family:system-ui,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem}textarea{width:100%;min-height:120px;font-family:monospace}pre{background:#f6f6f6;padding:1rem;border-radius:.5rem;white-space:pre-wrap}.card{border:1px solid #ddd;border-radius:.75rem;padding:1rem;margin:1rem 0}</style></head>
+<body>
+<h1>AI4SE Agent Kernel WebUI</h1>
+<p>This hosted interface demonstrates the mock action protocol used by the project. The full Python CLI/server implementation is in the repository.</p>
+<div class="card"><label>Mock JSON actions, one per line</label><textarea id="input">{"action":{"type":"write_file","path":"hello.py","content":"print('broken'\n"}}
+{"action":{"type":"write_file","path":"hello.py","content":"print('fixed')\n"}}
+{"action":{"type":"finish","summary":"feedback repaired syntax"}}</textarea><button id="run">Run demo</button></div>
+<pre id="out">No run yet.</pre>
+<script>
+function simulate(lines){const obs=[];for(const line of lines){const a=JSON.parse(line).action;if(a.type==='write_file'){obs.push({source:'tool.write_file',success:true,message:'wrote '+a.path});if((a.content||'').includes('broken')) obs.push({source:'feedback',success:false,message:'syntax validator failed'});else obs.push({source:'feedback',success:true,message:'syntax validator passed'});} if(a.type==='finish'){obs.push({source:'tool.finish',success:true,message:a.summary||'done'});return {completed:true,stopped_reason:'finished',observations:obs};}}return {completed:false,stopped_reason:'mock_exhausted',observations:obs};}
+document.getElementById('run').onclick=()=>{try{document.getElementById('out').textContent=JSON.stringify(simulate(document.getElementById('input').value.split('\n').filter(Boolean)),null,2)}catch(e){document.getElementById('out').textContent=String(e)}};
+</script>
+</body></html>
