@@ -1,0 +1,67 @@
+name: Bug report
+description: Report a reproducible AegisCode bug
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Provide a minimal reproduction. Do not include secrets, tokens, private logs, or sensitive workspace contents.
+  - type: input
+    id: version
+    attributes:
+      label: AegisCode version or commit
+      placeholder: v0.2.0 or commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - CLI
+        - Tools and guardrails
+        - Approvals
+        - Snapshots
+        - Subagents
+        - Providers and auth
+        - WebUI
+        - Packaging and install
+        - CI and release
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: Ubuntu 24.04, Python 3.12, pipx, Docker, etc.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Exact commands and minimal files needed to reproduce.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or output
+      description: Remove secrets before posting.
+      render: text
