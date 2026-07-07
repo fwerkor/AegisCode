@@ -2,11 +2,16 @@
 set -eu
 
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+case "$OS" in
+  linux) OS="linux" ;;
+  darwin) OS="macos" ;;
+  *) echo "unsupported OS for standalone binary: $OS" >&2; exit 1 ;;
+esac
+
 ARCH=$(uname -m)
 case "$ARCH" in
   x86_64|amd64) ARCH="x86_64" ;;
-  arm64|aarch64) ARCH="arm64" ;;
-  *) echo "unsupported arch: $ARCH" >&2; exit 1 ;;
+  *) echo "standalone binary is not published for arch: $ARCH" >&2; echo "Use: pipx install git+https://github.com/fwerkor/AegisCode.git" >&2; exit 1 ;;
 esac
 
 VERSION=${AEGISCODE_VERSION:-latest}
