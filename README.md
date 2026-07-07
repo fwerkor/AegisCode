@@ -1,91 +1,195 @@
-# Aegis Code Harness
+# AegisCode
 
-Aegis Code Harness is a small, self-contained Coding Agent Harness. It demonstrates that the reliable part of a coding agent is not a prompt, but an explicit loop around an LLM: context assembly, action parsing, tool dispatch, deterministic governance, feedback sensors, cross-session memory, configuration, credentials, and distribution.
+AegisCode is an opencode-style coding-agent CLI. It provides project initialization, governed file and shell tools, durable subagents, persistent approvals, JSONL audit logs, snapshots, provider adapters, a local WebUI, and portable release artifacts.
 
-The project deliberately avoids high-level agent orchestration frameworks. The LLM adapter only performs a single chat completion. The agent loop, guardrails, validators, memory retrieval, and stop conditions are implemented in this repository and tested with a mock LLM.
+## Install
 
-## Installation
-
-```bash
-python -m pip install -e .[dev]
-make test
-```
-
-## Running
-
-Mechanism demos:
+Recommended Python CLI installation:
 
 ```bash
-make demo
+pipx install aegiscode
 ```
+
+Alternative Python tool installation:
+
+```bash
+uv tool install aegiscode
+```
+
+Node wrapper:
+
+```bash
+npm i -g aegiscode
+```
+
+Docker:
+
+```bash
+docker run --rm -it -p 8080:8080 -v "$PWD:/workspace" ghcr.io/fwerkor/aegiscode:latest
+```
+
+Standalone binaries are published on GitHub Releases for Linux, macOS, and Windows. Download the matching artifact and put it on your `PATH`.
+
+Optional install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fwerkor/AegisCode/main/scripts/install.sh | sh
+```
+
+## Initialize a project
+
+Run this inside the repository you want AegisCode to operate on:
+
+```bash
+aegiscode init
+```
+
+This creates:
+
+```text
+AGENTS.md
+.aegiscode/config.toml
+.aegiscode/subagents.json
+```
+
+`AGENTS.md` stores project-level agent rules. `.aegiscode/config.toml` stores runtime, provider, governance, feedback, and shell-policy settings. `.aegiscode/subagents.json` stores durable subagent roles and queued work.
+
+## Run tasks
 
 Offline mock run:
 
 ```bash
-aegis run "create hello.py"   --mock-response '{"action":{"type":"write_file","path":"hello.py","content":"print(42)\n"}}'   --mock-response '{"action":{"type":"finish","summary":"created hello.py"}}'
+aegiscode run "create hello.py" \
+  --provider mock \
+  --mock-response '{"action":{"type":"write_file","path":"hello.py","content":"print(42)\n"}}' \
+  --mock-response '{"action":{"type":"finish","summary":"created hello.py"}}'
 ```
 
-WebUI:
+OpenAI-compatible provider:
 
 ```bash
-make web
+export AEGISCODE_OPENAI_API_KEY=...
+aegiscode run "add a pytest for the parser" --provider openai-compatible --model gpt-4.1-mini
+```
+
+GitHub Models provider:
+
+```bash
+export AEGISCODE_GITHUB_MODELS_KEY=...
+aegiscode run "review the current diff" --provider github-models --model openai/gpt-4.1
+```
+
+## Local WebUI
+
+Online docs: <https://fwerkor.github.io/AegisCode/>
+
+Local WebUI:
+
+```bash
+aegiscode serve
 # open http://127.0.0.1:8080
 ```
 
-GitHub Models provider run:
+## Subagents
+
+Default project initialization includes `planner`, `implementer`, `reviewer`, `tester`, and `release` roles.
 
 ```bash
-AEGIS_GITHUB_MODELS_KEY=... aegis run "create hello.py" --provider github --model openai/gpt-4.1
+aegiscode subagent list
+
+aegiscode subagent register docs --role documentation --system-hint "Improve user docs and examples."
+
+aegiscode subagent queue --agent planner --task "Plan the release checklist"
+aegiscode subagent queue
+
+aegiscode subagent run-next
+aegiscode subagent run-all
 ```
 
-Mock tests remain the required grading path; the GitHub Models adapter is for real-provider smoke testing and experimentation.
+## Approvals
 
-## Distribution
-
-Container build:
+High-risk actions are persisted in `.aegiscode/approvals.json` and can be reviewed later.
 
 ```bash
-docker build -t aegis-code-harness:local .
-docker run --rm -p 8080:8080 -v "$PWD/.aegis-data:/data" aegis-code-harness:local
+aegiscode approval list
+aegiscode approval approve <approval-id> --note "reviewed"
+aegiscode approval reject <approval-id> --note "not safe"
 ```
 
-The Docker image runs the WebUI on port 8080 and stores runtime state under `/data`.
+## Credentials
 
-## Key security configuration
-
-Real provider calls can use `AEGIS_OPENAI_API_KEY` or `AEGIS_GITHUB_MODELS_KEY`, but the safer local path is the encrypted credential store:
+Use environment variables for CI and non-interactive runs:
 
 ```bash
-aegis credential set openai
-aegis credential status
-aegis credential clear openai
+export AEGISCODE_OPENAI_API_KEY=...
+export AEGISCODE_GITHUB_MODELS_KEY=...
 ```
 
-`credential status` reports only whether a secret exists. It never prints the key. `.env` files are supported only as an operational fallback through environment variables; they are plaintext and must not be committed.
+Use the encrypted local credential store for interactive machines:
 
-## Directory structure
+```bash
+aegiscode auth status
+aegiscode auth set openai
+aegiscode auth set github
+aegiscode auth clear openai
+```
+
+`auth status` only reports whether a credential exists. It does not print secret values.
+
+## Tool surface
+
+AegisCode exposes a governed local tool surface:
 
 ```text
-src/aegis_harness/     harness kernel
-  agent.py            main loop
-  parser.py           JSON action parser
-  tools.py            file/shell/test tool dispatcher
-  guardrails.py       deterministic dangerous-action governance
-  feedback.py         validator/sensor execution
-  memory.py           framework-free JSON memory store
-  credentials.py      encrypted credential storage fallback
-  web.py              minimal WebUI
-scripts/              deterministic mechanism demonstrations
-tests/                mock-LLM unit tests
-config/               example TOML configuration
-.github/workflows/    GitHub Actions CI
-.gitlab-ci.yml        required GitLab unit-test job
+file: read_file, write_file, edit_file, patch, delete_file, glob, grep, tree
+shell: shell, shell_session_start, shell_session_read, shell_session_send, shell_session_kill, job_start, job_list, job_tail, job_kill
+git: git_status, git_diff, git_add, git_commit, git_push, git_branch, git_log
+browser/web: browser_text, browser_screenshot, browser_pdf
+governance: audit_tail, create_snapshot, restore_snapshot, list_tools
 ```
 
-## Safety boundaries
+All actions are written to `.aegiscode/audit.jsonl`. Mutating actions can create pre-change snapshots under `.aegiscode/snapshots` so changes can be restored.
 
-Aegis confines file tools to the configured workspace. Potentially irreversible actions such as deletion, package publishing, external deployment, and infrastructure mutation require human approval. Path traversal is blocked. Validators and guardrails are deterministic code, so they can be tested without a real LLM.
+## Configuration
 
-## Known limits
+Example `.aegiscode/config.toml`:
 
-This is a course-scale harness. It does not implement process isolation stronger than workspace boundaries and command filtering. For untrusted code, run it in a locked-down container or VM. Real LLM use depends on a provider-compatible API key.
+```toml
+[agent]
+max_steps = 12
+workspace = "."
+stop_on_approval_required = true
+
+[provider]
+default = "mock"
+model = "gpt-4.1-mini"
+base_url = "https://api.openai.com/v1/chat/completions"
+
+[governance]
+audit_path = ".aegiscode/audit.jsonl"
+approvals_path = ".aegiscode/approvals.json"
+snapshot_dir = ".aegiscode/snapshots"
+snapshot_before_mutation = true
+```
+
+## Diagnostics
+
+```bash
+aegiscode doctor
+```
+
+`doctor` prints the active package name, CLI name, workspace, provider, governance paths, and registered tools.
+
+## Releases
+
+GitHub Releases publish:
+
+- Python source distribution and wheel
+- standalone Linux, macOS, and Windows binaries
+- Docker image metadata
+- npm wrapper package files
+- Homebrew formula
+- Scoop manifest
+- Chocolatey nuspec
+
+Primary install paths are `pipx install aegiscode`, `uv tool install aegiscode`, and release binaries.
