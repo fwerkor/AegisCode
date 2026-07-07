@@ -1,6 +1,6 @@
 {
   "name": "@fwerkor/aegiscode",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Node wrapper for the AegisCode CLI",
   "bin": {
     "aegiscode": "bin/aegiscode.js"
