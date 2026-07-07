@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version/tag, for example v0.1.0 or v0.1.0-rc.1'
+        description: 'Release version/tag, for example v0.2.0 or v0.2.0-rc.1'
         required: true
         type: string
       prerelease:
@@ -32,6 +32,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - run: python scripts/validate_release_version.py "$RELEASE_VERSION"
       - run: python -m pip install --upgrade pip build
       - run: python -m build
       - uses: actions/upload-artifact@v4
@@ -60,6 +61,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - run: python scripts/validate_release_version.py "$RELEASE_VERSION"
       - run: python -m pip install --upgrade pip pyinstaller
       - run: python -m pip install -e .
       - run: python scripts/build_binary.py
@@ -95,6 +97,7 @@ jobs:
       - uses: docker/build-push-action@v6
         env:
           DOCKER_BUILD_RECORD_UPLOAD: false
+          DOCKER_BUILD_SUMMARY: false
         with:
           context: .
           push: true
@@ -103,8 +106,12 @@ jobs:
   release:
     name: Upload GitHub Release artifacts
     runs-on: ubuntu-latest
-    needs: [package, binaries]
+    needs: [package, binaries, docker]
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - uses: actions/download-artifact@v4
         with:
           name: python-packages
@@ -114,6 +121,8 @@ jobs:
           pattern: aegiscode-*
           path: release-artifacts
           merge-multiple: true
+      - name: Render checksums and package manifests
+        run: python scripts/render_release_manifests.py --version "$RELEASE_VERSION" --artifacts release-artifacts --out release-artifacts
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_VERSION }}
