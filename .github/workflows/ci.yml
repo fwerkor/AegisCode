@@ -21,37 +21,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e .[dev]
-      - run: python -m pytest tests/test_parser.py tests/test_guardrails.py tests/test_memory.py tests/test_credentials.py tests/test_agent_loop.py tests/test_governance_expansion.py tests/test_subagents.py tests/test_cli.py
+      - run: python -m pytest -q
 
-  integration-tests:
-    name: integration tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e .[dev]
-      - run: python -m pytest tests/test_integration_runtime.py
-
-  cli-smoke:
-    name: CLI smoke tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e .[dev]
-      - run: aegiscode --help
-      - run: aegiscode init --root /tmp/aegiscode-smoke
-      - run: aegiscode doctor
-      - run: python -m aegiscode.cli run "create smoke file" --workspace /tmp/aegiscode-smoke --provider mock --mock-response '{"action":{"type":"write_file","path":"smoke.txt","content":"ok\n"}}' --mock-response '{"action":{"type":"finish","summary":"done"}}'
-
-  docs-build:
-    name: docs build
+  docs-link-check:
+    name: docs link check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -60,20 +33,45 @@ jobs:
           python-version: '3.12'
       - run: python scripts/build_docs.py
 
-  docker-build:
-    name: Docker build
+  install-method-smoke:
+    name: install smoke (${{ matrix.method }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        method: [pipx, uv-tool, npm-wrapper]
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - uses: actions/setup-python@v5
         with:
-          context: .
-          push: false
-          tags: ghcr.io/fwerkor/aegiscode:ci
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        if: matrix.method == 'npm-wrapper'
+        with:
+          node-version: '22'
+      - uses: astral-sh/setup-uv@v5
+        if: matrix.method == 'uv-tool'
+      - run: python -m pip install --upgrade pip
+      - name: pipx smoke
+        if: matrix.method == 'pipx'
+        run: |
+          python -m pip install pipx
+          python -m pipx install .
+          ~/.local/bin/aegiscode doctor
+      - name: uv tool smoke
+        if: matrix.method == 'uv-tool'
+        run: |
+          uv tool install .
+          aegiscode doctor
+      - name: npm wrapper smoke
+        if: matrix.method == 'npm-wrapper'
+        run: |
+          python -m pip install -e .
+          npm install -g ./packaging/npm-wrapper
+          aegiscode doctor
 
-  package-build:
-    name: Python package build
+  release-dry-run:
+    name: release dry-run and manifest validation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -81,19 +79,36 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install --upgrade pip build
-      - run: python -m build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: python-packages
-          path: dist/*
+      - run: python -m pip install -e .[dev]
+      - run: python scripts/validate_packaging.py
+      - run: python scripts/release_dry_run.py
 
-  binary-build:
-    name: binary build (${{ matrix.os }})
+  docker-smoke:
+    name: Docker smoke run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: aegiscode:ci
+      - run: docker run --rm aegiscode:ci doctor
+
+  binary-smoke:
+    name: binary smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            binary: dist/aegiscode
+          - os: macos-latest
+            binary: dist/aegiscode
+          - os: windows-latest
+            binary: dist/aegiscode.exe
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -102,8 +117,21 @@ jobs:
       - run: python -m pip install --upgrade pip pyinstaller
       - run: python -m pip install -e .
       - run: python scripts/build_binary.py
+      - shell: bash
+        run: "${{ matrix.binary }}" doctor
       - uses: actions/upload-artifact@v4
         with:
           name: aegiscode-binary-${{ matrix.os }}
-          path: |
-            dist/aegiscode*
+          path: dist/aegiscode*
+
+  tool-surface-snapshot:
+    name: tool surface snapshot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e .[dev]
+      - run: python -m pytest tests/test_docs_and_packaging.py::test_tool_surface_snapshot -q

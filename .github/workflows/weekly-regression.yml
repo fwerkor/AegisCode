@@ -18,12 +18,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: python -m pip install --upgrade pip build
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install --upgrade pip build pipx
       - run: python -m pip install -e .[dev]
       - run: python -m pytest -q
       - run: python scripts/build_docs.py
-      - run: python -m build
+      - run: python scripts/validate_packaging.py
+      - run: python scripts/release_dry_run.py
+      - run: python -m pipx install .
+      - run: ~/.local/bin/aegiscode doctor
+      - run: uv tool install .
+      - run: aegiscode doctor
+      - run: npm install -g ./packaging/npm-wrapper
+      - run: aegiscode doctor
       - run: docker build -t aegiscode:weekly .
+      - run: docker run --rm aegiscode:weekly doctor
 
   open-issue-on-failure:
     name: open issue on failure
@@ -41,6 +53,6 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: `Weekly AegisCode regression failed: ${new Date().toISOString()}`,
-              body: `The scheduled weekly regression workflow failed. Run URL: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-              labels: ['ci', 'regression']
+              body: `The scheduled weekly regression workflow failed. Failed job: weekly regression. Run URL: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              labels: ['ci', 'regression', 'weekly']
             })

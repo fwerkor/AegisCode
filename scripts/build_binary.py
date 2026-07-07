@@ -11,7 +11,11 @@ def main() -> int:
     dist.mkdir(exist_ok=True)
     name = "aegiscode.exe" if sys.platform.startswith("win") else "aegiscode"
     if shutil.which("pyinstaller"):
-        subprocess.check_call([sys.executable, "-m", "PyInstaller", "--onefile", "--name", "aegiscode", "src/aegiscode/cli.py"])
+        entry_dir = Path("build")
+        entry_dir.mkdir(exist_ok=True)
+        entry = entry_dir / "aegiscode_entry.py"
+        entry.write_text("from aegiscode.cli import main\nraise SystemExit(main())\n", encoding="utf-8")
+        subprocess.check_call([sys.executable, "-m", "PyInstaller", "--onefile", "--name", "aegiscode", "--collect-all", "aegiscode", str(entry)])
         return 0
     launcher = dist / name
     script = "#!/usr/bin/env sh\nexec python -m aegiscode.cli \"$@\"\n"
