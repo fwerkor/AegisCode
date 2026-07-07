@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aegis-code-harness"
+version = "0.1.0"
+description = "A minimal coding-agent harness with deterministic guardrails, feedback, memory, config, credentials, and WebUI."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Castronaut" }]
+license = { text = "MIT" }
+dependencies = ["cryptography>=42.0.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0"]
+
+[project.scripts]
+aegis = "aegis_harness.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]

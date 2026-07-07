@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+.venv/
+.env
+.aegis/
+.work/
+credential-store.json
+.DS_Store
