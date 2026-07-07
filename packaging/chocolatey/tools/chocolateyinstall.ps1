@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-$url64 = 'https://github.com/fwerkor/AegisCode/releases/download/v0.2.0/aegiscode-windows-x86_64.exe'
+$url64 = 'https://github.com/fwerkor/AegisCode/releases/download/v0.5.0/aegiscode-windows-x86_64.exe'
 $packageArgs = @{
   packageName   = 'aegiscode'
   fileType      = 'exe'
