@@ -1,9 +1,30 @@
 name: CI
+
 on:
   push:
   pull_request:
+
+permissions:
+  contents: read
+
 jobs:
-  unit-test:
+  unit-tests:
+    name: unit tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e .[dev]
+      - run: python -m pytest tests/test_parser.py tests/test_guardrails.py tests/test_memory.py tests/test_credentials.py tests/test_agent_loop.py tests/test_governance_expansion.py tests/test_subagents.py tests/test_cli.py
+
+  integration-tests:
+    name: integration tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -11,9 +32,36 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install --upgrade pip
-      - run: pip install -e .[dev]
-      - run: make test
+      - run: python -m pip install -e .[dev]
+      - run: python -m pytest tests/test_integration_runtime.py
+
+  cli-smoke:
+    name: CLI smoke tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e .[dev]
+      - run: aegiscode --help
+      - run: aegiscode init --root /tmp/aegiscode-smoke
+      - run: aegiscode doctor
+      - run: python -m aegiscode.cli run "create smoke file" --workspace /tmp/aegiscode-smoke --provider mock --mock-response '{"action":{"type":"write_file","path":"smoke.txt","content":"ok\n"}}' --mock-response '{"action":{"type":"finish","summary":"done"}}'
+
+  docs-build:
+    name: docs build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python scripts/build_docs.py
+
   docker-build:
+    name: Docker build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,4 +70,40 @@ jobs:
         with:
           context: .
           push: false
-          tags: aegis-code-harness:ci
+          tags: ghcr.io/fwerkor/aegiscode:ci
+
+  package-build:
+    name: Python package build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-packages
+          path: dist/*
+
+  binary-build:
+    name: binary build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --upgrade pip pyinstaller
+      - run: python -m pip install -e .
+      - run: python scripts/build_binary.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aegiscode-binary-${{ matrix.os }}
+          path: |
+            dist/aegiscode*
