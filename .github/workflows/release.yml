@@ -4,10 +4,24 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version/tag, for example v0.1.0 or v0.1.0-rc.1'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark the GitHub Release as a pre-release'
+        required: true
+        default: true
+        type: boolean
 
 permissions:
   contents: write
   packages: write
+
+env:
+  RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+  RELEASE_PRERELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || contains(github.ref_name, '-') }}
 
 jobs:
   package:
@@ -74,8 +88,8 @@ jobs:
           context: .
           push: true
           tags: |
+            ghcr.io/fwerkor/aegiscode:${{ env.RELEASE_VERSION }}
             ghcr.io/fwerkor/aegiscode:latest
-            ghcr.io/fwerkor/aegiscode:${{ github.ref_name }}
 
   release:
     name: Upload GitHub Release artifacts
@@ -87,5 +101,8 @@ jobs:
           path: release-artifacts
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.RELEASE_VERSION }}
+          target_commitish: ${{ github.sha }}
+          prerelease: ${{ env.RELEASE_PRERELEASE }}
           files: release-artifacts/**/*
           generate_release_notes: true
